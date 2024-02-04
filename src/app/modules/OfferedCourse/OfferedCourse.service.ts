@@ -9,6 +9,7 @@ import { SemesterRegistration } from '../semesterRegistration/semesterRegistrati
 import { TOfferedCourse } from './OfferedCourse.interface';
 import { OfferedCourse } from './OfferedCourse.model';
 import { hasTimeConflict } from './OfferedCourse.utils';
+import { Student } from '../student/student.model';
 
 const createOfferedCourseIntoDB = async (payload: TOfferedCourse) => {
   const {
@@ -22,19 +23,6 @@ const createOfferedCourseIntoDB = async (payload: TOfferedCourse) => {
     startTime,
     endTime,
   } = payload;
-
-  /**
-   * Step 1: check if the semester registration id is exists!
-   * Step 2: check if the academic faculty id is exists!
-   * Step 3: check if the academic department id is exists!
-   * Step 4: check if the course id is exists!
-   * Step 5: check if the faculty id is exists!
-   * Step 6: check if the department is belong to the  faculty
-   * Step 7: check if the same offered course same section in same registered semester exists
-   * Step 8: get the schedules of the faculties
-   * Step 9: check if the faculty is available at that time. If not then throw error
-   * Step 10: create the offered course
-   */
 
   //check if the semester registration id is exists!
   const isSemesterRegistrationExits =
@@ -139,6 +127,47 @@ const getAllOfferedCoursesFromDB = async (query: Record<string, unknown>) => {
     .fields();
 
   const result = await offeredCourseQuery.modelQuery;
+  const meta = await offeredCourseQuery.countTotal();
+  return {
+    meta,
+    result,
+  };
+};
+
+const getMyOfferedCoursesFromDB = async (userId: string) => {
+  const student = await Student.findOne({ id: userId });
+  if (!student) {
+    throw new AppError(404, 'User not found');
+  }
+  //ongoing semister--
+  const currentOnGoingRegistrationSemester = await SemesterRegistration.findOne(
+    {
+      status: 'ONGOING',
+    },
+  );
+
+  if (!currentOnGoingRegistrationSemester) {
+    throw new AppError(404, 'There is no semester registration on going!!!');
+  }
+
+  const result = await OfferedCourse.aggregate([
+    {
+      $match: {
+        semesterRegistration: currentOnGoingRegistrationSemester?._id,
+        academicFaculty: student.academicDepartment,
+        academicDepartment: student.academicDepartment,
+      },
+    },
+    { 
+      $lookup: {
+        from: 'courses',
+        localField: 'course',
+        foreignField: '_id',
+        as: 'course',
+      },
+    },
+  ]);
+
   return result;
 };
 
@@ -156,13 +185,6 @@ const updateOfferedCourseIntoDB = async (
   id: string,
   payload: Pick<TOfferedCourse, 'faculty' | 'days' | 'startTime' | 'endTime'>,
 ) => {
-  /**
-   * Step 1: check if the offered course exists
-   * Step 2: check if the faculty exists
-   * Step 3: check if the semester registration status is upcoming
-   * Step 4: check if the faculty is available at that time. If not then throw error
-   * Step 5: update the offered course
-   */
   const { faculty, days, startTime, endTime } = payload;
 
   const isOfferedCourseExists = await OfferedCourse.findById(id);
@@ -179,7 +201,6 @@ const updateOfferedCourseIntoDB = async (
 
   const semesterRegistration = isOfferedCourseExists.semesterRegistration;
   // get the schedules of the faculties
-
 
   // Checking the status of the semester registration
   const semesterRegistrationStatus =
@@ -253,4 +274,5 @@ export const OfferedCourseServices = {
   getSingleOfferedCourseFromDB,
   deleteOfferedCourseFromDB,
   updateOfferedCourseIntoDB,
+  getMyOfferedCoursesFromDB,
 };
