@@ -5,7 +5,7 @@ import validateRequest from '../../middlewares/validateRequest';
 import { upload } from '../../utils/sendImageToCloudinary';
 import { createAdminValidationSchema } from '../Admin/admin.validation';
 import { createFacultyValidationSchema } from '../Faculty/faculty.validation';
-import { createStudentValidationSchema } from '../student/student.validation';
+import { createStudentValidationSchema } from '../Student/student.validation';
 import { USER_ROLE } from './user.constant';
 import { UserControllers } from './user.controller';
 import { UserValidation } from './user.validation';
@@ -20,7 +20,6 @@ router.post(
     req.body = JSON.parse(req.body.data);
     next();
   },
-
   validateRequest(createStudentValidationSchema),
   UserControllers.createStudent,
 );
@@ -51,7 +50,7 @@ router.post(
 
 router.post(
   '/change-status/:id',
-  auth('admin'),
+  auth(USER_ROLE.superAdmin, USER_ROLE.admin),
   validateRequest(UserValidation.changeStatusValidationSchema),
   UserControllers.changeStatus,
 );
